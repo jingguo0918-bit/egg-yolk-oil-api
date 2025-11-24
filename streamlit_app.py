@@ -1,92 +1,64 @@
 import streamlit as st
-import requests
-import json
+import numpy as np
 
-# -------------------------------------------------
-# App UI (C 风格：科研简洁风 + 食品工业色彩)
-# -------------------------------------------------
+# ------------------------------
+# 内置本地预测模型（代替 API）
+# ------------------------------
+def predict_oil_release(SH, MDA, D50, T2, Carbonyl):
+    """
+    一个示例预测模型（线性回归形式）
+    你可以根据真实公式修改
+    """
+    # 你的模型权重（示例）
+    coef_SH = -0.8
+    coef_MDA = 1.2
+    coef_D50 = 0.05
+    coef_T2 = -0.03
+    coef_Carbonyl = 2.0
+    bias = 10
 
-st.set_page_config(
-    page_title="Egg Yolk Oil Predictor",
-    page_icon="🥚",
-    layout="centered"
-)
+    oil = (coef_SH * SH +
+           coef_MDA * MDA +
+           coef_D50 * D50 +
+           coef_T2 * T2 +
+           coef_Carbonyl * Carbonyl +
+           bias)
+
+    # 结果限制在合理区间
+    return max(0, min(round(oil, 2), 100))
+
+
+# ------------------------------
+# Streamlit 页面
+# ------------------------------
+st.set_page_config(page_title="蛋黄出油率预测系统", page_icon="🥚", layout="wide")
 
 st.title("🥚 Egg Yolk Oil Release Prediction System")
-st.write("基于蛋黄氧化指标的 **AI 出油率预测模型（v1.0）**")
+st.write("基于蛋黄氧化指标的 AI 出油率预测模型（本地版，无需 API）")
 
-st.markdown("---")
-st.subheader("🔬 输入你的检测指标（可来自实验或生产线传感器）")
-
-# -------------------------------------------------
-# 用户输入
-# -------------------------------------------------
+# 输入参数
+st.header("🧪 输入你的检测指标（可来自实验或产线传感器）")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    SH = st.number_input("SH（μmol/g）", min_value=0.0, value=10.0)
-    MDA = st.number_input("MDA（nmol/g）", min_value=0.0, value=1.0)
-    Carbonyl = st.number_input("Carbonyl（nmol/mg）", min_value=0.0, value=0.5)
+    SH = st.number_input("SH（μmol/g）", value=10.0)
+    MDA = st.number_input("MDA（nmol/g）", value=1.0)
+    Carbonyl = st.number_input("Carbonyl（nmol/mg）", value=0.5)
 
 with col2:
-    D50 = st.number_input("粒径 D50（μm）", min_value=0.0, value=40.0)
-    T2 = st.number_input("T₂（ms）", min_value=0.0, value=50.0)
+    D50 = st.number_input("粒径 D50（μm）", value=40.0)
+    T2 = st.number_input("T₂（ms）", value=50.0)
 
-st.markdown("---")
-
-# -------------------------------------------------
-# 调用你的后端 server.py API
-# -------------------------------------------------
-
-API_URL = "https://egg-yolk-oil-api.streamlit.app/?path=predict/expert"
-
-def call_api(SH, MDA, D50, T2, Carbonyl):
-    params = {
-        "SH": SH,
-        "MDA": MDA,
-        "D50": D50,
-        "T2": T2,
-        "Carbonyl": Carbonyl
-    }
-    try:
-        response = requests.get(API_URL, params=params, timeout=10)
-        return response.json()
-    except:
-        return {"error": "无法连接到服务器，请检查 API 是否在线。"}
-
-# -------------------------------------------------
-# 风险评估
-# -------------------------------------------------
-
-def risk_level(oil):
-    if oil < 20:
-        return "🟢 低风险（出油率低）"
-    elif 20 <= oil <= 40:
-        return "🟡 中风险（需要关注）"
-    else:
-        return "🔴 高风险（出油率高，需重点监控）"
-
-# -------------------------------------------------
-# 预测按钮
-# -------------------------------------------------
-
+# ------------------------------
+# 按钮触发本地预测
+# ------------------------------
+st.write("---")
 if st.button("🚀 一键预测蛋黄出油率"):
-    with st.spinner("AI 正在分析中…"):
+    oil_rate = predict_oil_release(SH, MDA, D50, T2, Carbonyl)
 
-        result = call_api(SH, MDA, D50, T2, Carbonyl)
+    st.success(f"预测的蛋黄出油率：**{oil_rate}%**")
 
-        if "prediction" in result:
-            oil = float(result["prediction"])
+    st.progress(min(1.0, oil_rate / 100))
 
-            st.success(f"预测出油率：**{oil:.2f}%**")
-            st.info(risk_level(oil))
-
-            st.markdown("---")
-            st.subheader("📊 输入参数回顾")
-            st.json(result["inputs"])
-
-        else:
-            st.error("服务器返回错误，请检查 API。")
-            st.json(result)
 
